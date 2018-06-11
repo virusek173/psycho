@@ -49,7 +49,7 @@ void *parallelFunction(journey *journeys) {
 	
 	struct journey journey;
 
-	journey.id = 0;
+    journey.id = 0;
     journey.clock = 0;
     journey.size = 0;
     journey.status = STATUS_CREATED;
@@ -66,8 +66,8 @@ void *parallelFunction(journey *journeys) {
 
 
 	while(1){
-		// int waittime = 100000;
-		// usleep(waittime);
+		 int waittime = 1;
+		 usleep(waittime);
 
 		MPI_Recv( &journey, 1, MPI_PAKIET, MPI_ANY_SOURCE, REQ_WYCIECZKA, MPI_COMM_WORLD, &status);
 		printf("Odebralem chec wyslania wycieczki do tunelu. Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journey.id, journey.clock, journey.size, journey.status);
@@ -87,8 +87,9 @@ int main(int argc,char **argv) {
     int M = atoi(argv[1]);
     int N = atoi(argv[2]);
     int P = atoi(argv[3]);
-    
-    MPI_Init(&argc, &argv); 
+    int provided;
+ 
+    MPI_Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided );
     MPI_Comm_size( MPI_COMM_WORLD, &size );
     MPI_Comm_rank( MPI_COMM_WORLD, &tid );
     printf("podane argumenty: M = %d N = %d P = %d  size = %d\n", M, N, P, size);
@@ -108,7 +109,7 @@ int main(int argc,char **argv) {
     pthread_t threadRec;
     pthread_create( &threadRec, NULL, parallelFunction, (void *)&journeys);
 
-    // while(1) { 
+     while(1) { 
 		int waittime = (int)(rand()%100000);
 		W = (int)(rand()%10000);
 
@@ -150,7 +151,7 @@ int main(int argc,char **argv) {
 	
 //     //}
     
-	// }
+	 }
     //srand( tid );
 	usleep(1000000);
     MPI_Finalize();
