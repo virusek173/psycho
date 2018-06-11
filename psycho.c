@@ -37,23 +37,40 @@ void createJourneyType() {
 		MPI_Type_commit(&MPI_PAKIET);
 }
 
-void *parallelFunction(void *myJourney) {
+void *parallelFunction(journey *journeys) {
 	createJourneyType();
 	int localSize;
 
-	journey * tmpMyJourney = myJourney;
+	// journey * tmpMyJourney = myJourney;
 
  	MPI_Comm_size( MPI_COMM_WORLD, &localSize );
 
 	//  printf("ID: %d	Zegar: %d	Odebralem chec wyslania wycieczki do tunelu.Nadawca:	%d	Zegar: %d	Rozmiar:%d\n", tmpMyJourney->id, tmpMyJourney->clock, tmpMyJourney->size);
 	
 	struct journey journey;
+
+	journey.id = 0;
+    journey.clock = 0;
+    journey.size = 0;
+    journey.status = STATUS_CREATED;
+	// TODO: nie wiem jak wyłuskać liczbę elementów struktury hehe
+	// size_t n = sizeof(journeys)/sizeof(&journeys[0]);
+		// printf("po n: %d", n);
+
+	// for (int i; i<n; i++) {
+		// printf("odebranaz");
+		// journeys[i] = journey;
+	// }
+	// printf("ID: %d	Zegar: %d	zapisałem wycieczke w polu o id: Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journeys[0].id, journeys[0].clock, journeys[0].id, journeys[0].clock, journeys[0].size, journeys[0].status);
+
+
+
 	while(1){
 		// int waittime = 100000;
 		// usleep(waittime);
 
 		MPI_Recv( &journey, 1, MPI_PAKIET, MPI_ANY_SOURCE, REQ_WYCIECZKA, MPI_COMM_WORLD, &status);
-		printf("ID: %d	Zegar: %d	Odebralem chec wyslania wycieczki do tunelu. Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", tmpMyJourney->id, tmpMyJourney->clock, journey.id, journey.clock, journey.size, journey.status);
+		printf("Odebralem chec wyslania wycieczki do tunelu. Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journey.id, journey.clock, journey.size, journey.status);
 
 	// 	//TODO: mutex na tablice wycieczek
 	// 	//addOrUpdate() - zaktualizuj albo dodaj wartości do lokalnej tablicy wycieczek
@@ -89,7 +106,7 @@ int main(int argc,char **argv) {
     myJourney.status = STATUS_CREATED;
 
     pthread_t threadRec;
-    pthread_create( &threadRec, NULL, parallelFunction, (void *)&myJourney);
+    pthread_create( &threadRec, NULL, parallelFunction, (void *)&journeys);
 
     // while(1) { 
 		int waittime = (int)(rand()%100000);
@@ -98,6 +115,9 @@ int main(int argc,char **argv) {
 		createJourneyType();
 
 		usleep(waittime);
+
+		// printf("ID: %d	Zegar: %d	wycieczka w main id: Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journeys[0].id, journeys[0].clock, journeys[0].id, journeys[0].clock, journeys[0].size, journeys[0].status);
+
 		printf("ID: %d	Zegar: %d spałem: %d \n",myJourney.id,myJourney.clock, waittime);
 		clock += 1;
     	myJourney.size = W;
@@ -110,6 +130,8 @@ int main(int argc,char **argv) {
 				MPI_Send( &myJourney, 1, MPI_PAKIET, i, REQ_WYCIECZKA, MPI_COMM_WORLD );
 			}
 		}
+
+		
 
 // 			printf("ID: %d	Zegar: %d	Wyslalem wszystkim chec wyslania wycieczki do tunelu. Rozmiar:%d\n", myJourney.id, myJourney.clock, myJourney.size);
 
