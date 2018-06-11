@@ -16,6 +16,9 @@
 MPI_Datatype MPI_PAKIET;
 MPI_Status status; 
 
+pthread_mutex_t clockMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t journeysMutex = PTHREAD_MUTEX_INITIALIZER;
+
 typedef struct journey
 {
     int id;
@@ -39,41 +42,29 @@ void createJourneyType() {
 
 void *parallelFunction(journey *journeys) {
 	createJourneyType();
-	int localSize;
-
-	// journey * tmpMyJourney = myJourney;
-
- 	MPI_Comm_size( MPI_COMM_WORLD, &localSize );
-
-	//  printf("ID: %d	Zegar: %d	Odebralem chec wyslania wycieczki do tunelu.Nadawca:	%d	Zegar: %d	Rozmiar:%d\n", tmpMyJourney->id, tmpMyJourney->clock, tmpMyJourney->size);
-	
+	int size;
+ 	MPI_Comm_size( MPI_COMM_WORLD, &size );
 	struct journey journey;
 
-    journey.id = 0;
-    journey.clock = 0;
-    journey.size = 0;
-    journey.status = STATUS_CREATED;
-	// TODO: nie wiem jak wyłuskać liczbę elementów struktury hehe
-	// size_t n = sizeof(journeys)/sizeof(&journeys[0]);
-		// printf("po n: %d", n);
-
-	// for (int i; i<n; i++) {
-		// printf("odebranaz");
-		// journeys[i] = journey;
-	// }
-	// printf("ID: %d	Zegar: %d	zapisałem wycieczke w polu o id: Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journeys[0].id, journeys[0].clock, journeys[0].id, journeys[0].clock, journeys[0].size, journeys[0].status);
-
-
-
 	while(1){
-		 int waittime = 1;
-		 usleep(waittime);
-
+		int waittime = 1;
+		usleep(waittime);
 		MPI_Recv( &journey, 1, MPI_PAKIET, MPI_ANY_SOURCE, REQ_WYCIECZKA, MPI_COMM_WORLD, &status);
-		printf("Odebralem chec wyslania wycieczki do tunelu. Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journey.id, journey.clock, journey.size, journey.status);
+		printf("ID: %d	Zegar: %d W2 Odebralem wiadomość wycieczkę do tunelu. Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journeys[size].id, journeys[size].clock, journeys[journey.id].id, journeys[journey.id].clock, journeys[journey.id].size, journeys[journey.id].status);
 
-	// 	//TODO: mutex na tablice wycieczek
-	// 	//addOrUpdate() - zaktualizuj albo dodaj wartości do lokalnej tablicy wycieczek
+		// Inkrementuje zegar zgodnie z Lamportem
+		int tmpClock = journeys[size].clock;
+		int oldClock = tmpClock;
+		if (journey.clock > tmpClock){
+			tmpClock = journey.clock;
+		}
+		tmpClock +=1;
+		printf("ID: %d	Zegar: %d W2 Zwiekszam zegar. Nowy zegar: %d\n",journeys[size].id, oldClock, journeys[size].clock);
+
+		pthread_mutex_lock(&journeysMutex);
+		journeys[size].clock = tmpClock;
+		journeys[journey.id] = journey;
+		pthread_mutex_unlock(&journeysMutex);
 	}
 }
 
@@ -94,17 +85,23 @@ int main(int argc,char **argv) {
     MPI_Comm_rank( MPI_COMM_WORLD, &tid );
     printf("podane argumenty: M = %d N = %d P = %d  size = %d\n", M, N, P, size);
 
-    srand(time(NULL));
+    srand(tid);
 
     int clock = tid;
     int W = 0;
-    struct journey journeys[size];
+    struct journey journeys[size + 1];
 
     struct journey myJourney;
-    myJourney.id = tid;
-    myJourney.clock = clock;
-    myJourney.size = W;
-    myJourney.status = STATUS_CREATED;
+
+	myJourney.id = tid;
+	myJourney.clock = clock;
+	myJourney.size = W;
+	myJourney.status = STATUS_CREATED;
+
+	//inicujuje przed stworzeniem 2 watku tablice, zeby mogl odpowiadac innym
+	// for (int i=0; i<size; i++) {
+		// journeys[i] = myJourney;
+	// }
 
     pthread_t threadRec;
     pthread_create( &threadRec, NULL, parallelFunction, (void *)&journeys);
@@ -112,47 +109,42 @@ int main(int argc,char **argv) {
      while(1) { 
 		int waittime = (int)(rand()%100000);
 		W = (int)(rand()%10000);
-
 		createJourneyType();
 
-		usleep(waittime);
-
-		// printf("ID: %d	Zegar: %d	wycieczka w main id: Nadawca: %d	 Zegar: %d  Rozmiar:%d status: %d\n", journeys[0].id, journeys[0].clock, journeys[0].id, journeys[0].clock, journeys[0].size, journeys[0].status);
-
-		printf("ID: %d	Zegar: %d spałem: %d \n",myJourney.id,myJourney.clock, waittime);
-		clock += 1;
-    	myJourney.size = W;
+		myJourney.id = tid;
 		myJourney.clock = clock;
-		myJourney.status = STATUS_WANT;
-		printf("ID: %d	Zegar: %d zmieniam na want Rozmiar: %d\n", myJourney.id, myJourney.clock, myJourney.size);
+		myJourney.size = W;
+		myJourney.status = STATUS_CREATED;
+		printf("ID: %d	Zegar: %d W1 ustawiam status na created Rozmiar: %d\n", myJourney.id, myJourney.clock, myJourney.size);
+
+		journeys[size] = myJourney; // ostatni index to nasza aktualna struktura
 
 		for (int i=0; i<size; i++) {
 			if (myJourney.id != i) {
 				MPI_Send( &myJourney, 1, MPI_PAKIET, i, REQ_WYCIECZKA, MPI_COMM_WORLD );
 			}
 		}
+		printf("ID: %d	Zegar: %d W1 Wysłałem wszystkim stats created\n", myJourney.id, myJourney.clock);
 
+
+		usleep(waittime);
+		printf("ID: %d	Zegar: %d W1 spałem: %d \n",myJourney.id,myJourney.clock, waittime);
 		
+		clock += 1;
+    	myJourney.size = W;
+		myJourney.clock = clock;
+		myJourney.status = STATUS_WANT;
+		journeys[size] = myJourney;
+		printf("ID: %d	Zegar: %d W1 zmieniam status na want Rozmiar: %d\n", myJourney.id, myJourney.clock, myJourney.size);
 
-// 			printf("ID: %d	Zegar: %d	Wyslalem wszystkim chec wyslania wycieczki do tunelu. Rozmiar:%d\n", myJourney.id, myJourney.clock, myJourney.size);
-
-// 		for (int i=0; i<size-1; i++) {
-// 			struct journey tmpReciveJourney; 
-// 			MPI_Recv( &tmpReciveJourney, 1, MPI_PAKIET, MPI_ANY_SOURCE, REQ_ANSWER_WYCIECZKA, MPI_COMM_WORLD, &status);
-// 			if(tmpReciveJourney.needToEnter){ 
-// 				journeys[busy] = tmpReciveJourney;
-// 				busy ++;
-// 				sort(journeys, busy);
-// 			}
-
-// 		}
-		
-// 	//}
-	
-//     //}
-    
+		for (int i=0; i<size; i++) {
+			if (myJourney.id != i) {
+				MPI_Send( &myJourney, 1, MPI_PAKIET, i, REQ_WYCIECZKA, MPI_COMM_WORLD );
+			}
+		}
+		printf("ID: %d	Zegar: %d W1 Wysłałem wszystkim status want\n", myJourney.id, myJourney.clock);
 	 }
-    //srand( tid );
+
 	usleep(1000000);
     MPI_Finalize();
 }

@@ -17,9 +17,9 @@ wycieczki - wektor przechowujący listy (ZEGAR,ID,WYCIECZKA,STATUS). posortowany
 wycieczka w tablice wycieczki przyjmuje następujące statusy: 'created', 'need', 'inside'
 
 algorytm(1watek):
+	zeruj zegar
 	pętla nieskończona
 	{
-	    zeruj zegar
 		losuj rozmiar wycieczki(W) z przedziału(1,M).
 
         ZEGAR+=1
